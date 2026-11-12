@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic design tokens. Palette: Indigo #6366F1, Emerald #10B981, Amber #F59E0B,
+   Background #F8FAFC (light) / #0F172A (dark). */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --ring: #6366f1;
+  color-scheme: light;
+}
+.dark {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #273449;
+  --fg: #f1f5f9;
+  --muted: #94a3b8;
+  --border: #334155;
+  --ring: #818cf8;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: #6366f1;
+  --color-secondary: #10b981;
+  --color-accent: #f59e0b;
+  --font-sans: var(--font-inter), "Noto Sans Tamil", "Noto Sans Devanagari", "Noto Sans Malayalam", "Noto Sans Telugu",
+    "Noto Sans Kannada", "Noto Sans JP", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-pop: pop 0.35s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@keyframes pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Script-specific faces for target-language text. */
+.font-tamil { font-family: "Noto Sans Tamil", var(--font-sans); }
+.font-devanagari { font-family: "Noto Sans Devanagari", var(--font-sans); }
+.font-malayalam { font-family: "Noto Sans Malayalam", var(--font-sans); }
+.font-telugu { font-family: "Noto Sans Telugu", var(--font-sans); }
+.font-kannada { font-family: "Noto Sans Kannada", var(--font-sans); }
+.font-jp { font-family: "Noto Sans JP", var(--font-sans); }
+.font-kr { font-family: "Noto Sans KR", var(--font-sans); }
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.scrollbar-thin { scrollbar-width: thin; }
