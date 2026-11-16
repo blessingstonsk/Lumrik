@@ -2,7 +2,7 @@
 
 An AI-powered language-learning web app: interactive lessons, spaced-repetition flashcards, speaking practice, an AI conversation tutor, gamification and an admin CMS.
 
-Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer Motion · Lucide · Recharts · Supabase (Auth + Postgres + Storage) · Anthropic Claude API · Web Speech API**.
+Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer Motion · Lucide · Recharts · Supabase (Auth + Postgres + Storage) · Google Gemini or Anthropic Claude API · Web Speech API**.
 
 ---
 
@@ -20,7 +20,7 @@ Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer 
 | Dashboard: daily goal ring, streak, XP, level, proficiency, lessons, words, weekly chart, achievements, recommended next lesson | ✅ |
 | Flashcards with SM-2 spaced repetition; vocabulary notebook (IPA, audio, example, POS, related words, review status, bookmarks) | ✅ |
 | Rule-based adaptive engine: mistake tracking, weak words, review lessons, revision recommendations, daily plan – every recommendation explains *why* | ✅ |
-| AI tutor (streaming): 8 scenarios, 3 difficulty levels, corrections explained in any language the learner speaks, alternative phrasings, dictation, TTS; AI writing feedback | ✅ with `ANTHROPIC_API_KEY`; without a key an **offline practice tutor** (scripted scenarios + rule-based grammar checks, English) takes over |
+| AI tutor (streaming): 8 scenarios, 3 difficulty levels, corrections explained in any language the learner speaks, alternative phrasings, dictation, TTS; AI writing feedback | ✅ with a free `GEMINI_API_KEY` or an `ANTHROPIC_API_KEY`; without a key an **offline practice tutor** (scripted scenarios + rule-based grammar checks, English) takes over |
 | **Lumi**, an animated mascot that greets you, reacts to right/wrong answers, celebrates lesson wins and is the tutor's face | ✅ |
 | Speaking practice: mic recording + playback, sentence repetition, word drills, transcription-based word-level feedback (no fake accent scores) | ✅ (Chrome/Edge/Safari) |
 | Progress analytics, profile & settings (theme, timezone, goal, leaderboard privacy, password) | ✅ |
@@ -61,7 +61,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000 and create an account. Without any env vars the app runs in local mode. Add `ANTHROPIC_API_KEY` to `.env.local` to enable the AI tutor.
+Open http://localhost:3000 and create an account. Without any env vars the app runs in local mode. Add a free `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY`) to `.env.local` to enable the AI tutor – see [Free AI tutor with Gemini](#free-ai-tutor-with-google-gemini).
 
 Other scripts:
 
@@ -89,8 +89,11 @@ See [.env.example](.env.example).
 | `NEXT_PUBLIC_SUPABASE_URL` | public | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | Supabase anon key (safe in the browser; RLS protects data) |
 | `SUPABASE_SERVICE_ROLE_KEY` | **server only** | Lets API routes write XP/progress after validation. Never expose it. |
-| `ANTHROPIC_API_KEY` | **server only** | AI tutor + writing feedback |
+| `GEMINI_API_KEY` | **server only** | AI tutor + writing feedback with Google Gemini (**free tier**) |
+| `GEMINI_MODEL` | server, optional | Model override (default `gemini-3.5-flash-lite`) |
+| `ANTHROPIC_API_KEY` | **server only** | AI tutor + writing feedback with Claude (paid) |
 | `ANTHROPIC_MODEL` | server, optional | Model override (default `claude-opus-5-5`) |
+| `AI_PROVIDER` | server, optional | `gemini` or `anthropic` – which to use when both keys are set (default: Claude) |
 
 API keys are only read in server code (`src/lib/server/*`, `src/app/api/*`); nothing secret is prefixed with `NEXT_PUBLIC_`.
 
@@ -193,9 +196,21 @@ Alternatively author it in TypeScript under `src/content/` (see `src/content/eng
 
 Streaks are computed from `daily_activity` rows keyed by the learner's **local date in their chosen timezone**.
 
+### Free AI tutor with Google Gemini
+
+1. Go to https://aistudio.google.com/apikey and sign in with a Google account.
+2. Click **Create API key** and copy it.
+3. Add it to `.env.local` in the project folder:
+   ```
+   GEMINI_API_KEY=your-key-here
+   ```
+4. Restart `npm run dev`. The tutor badge changes from *Offline practice* to *AI* and works in every language, including Hindi and Tamil.
+
+The free tier has rate and daily limits (see Google's pricing page); when they are reached, learners see a friendly "try again later" message. On the free tier Google may use prompts to improve its products, so learners shouldn't type personal information. For production with real users, use a paid Gemini tier or Claude.
+
 ### AI tutor without an API key
 
-When `ANTHROPIC_API_KEY` is not set, `GET /api/tutor` reports `configured: false` and the tutor page switches to **offline practice mode** ([src/lib/offline-tutor.ts](src/lib/offline-tutor.ts)): Lumi follows a script for each scenario, reacts to keywords, and corrects ~20 common beginner mistakes (age with *have*, missing third-person *-s*, *a/an*, *do/does* + base verb, *want to*, question word order, *on Monday*, …). Writing practice gets the same rule-based checks. Offline mode covers English; other target languages need the API key. Add the key and restart – the tutor switches to real AI automatically.
+When neither `GEMINI_API_KEY` nor `ANTHROPIC_API_KEY` is set, `GET /api/tutor` reports `configured: false` and the tutor page switches to **offline practice mode** ([src/lib/offline-tutor.ts](src/lib/offline-tutor.ts)): Lumi follows a script for each scenario, reacts to keywords, and corrects ~20 common beginner mistakes (age with *have*, missing third-person *-s*, *a/an*, *do/does* + base verb, *want to*, question word order, *on Monday*, …). Writing practice gets the same rule-based checks. Offline mode covers English; other target languages need the API key. Add a key and restart – the tutor switches to real AI automatically.
 
 ### Speech
 

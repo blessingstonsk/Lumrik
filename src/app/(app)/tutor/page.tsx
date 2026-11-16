@@ -292,7 +292,7 @@ function Conversation() {
         </div>
         {mode.value === "offline" && !offlineUnsupported && (
           <p className="border-b border-border bg-amber-500/10 px-5 py-2 text-xs text-amber-800 dark:text-amber-300">
-            Offline practice mode: Lumi follows a scenario script and catches common beginner mistakes. For free-flowing AI conversation, add <code>ANTHROPIC_API_KEY</code> on the server.
+            Offline practice mode: Lumi follows a scenario script and catches common beginner mistakes. For free-flowing AI conversation, add a free <code>GEMINI_API_KEY</code> (or <code>ANTHROPIC_API_KEY</code>) on the server.
           </p>
         )}
 
@@ -302,7 +302,7 @@ function Conversation() {
               <div className="text-4xl">🔌</div>
               <h3 className="mt-2 font-display text-lg font-bold">AI tutor not connected</h3>
               <p className="mt-1 text-sm text-muted">
-                Offline practice is available for English. To chat in {lang.name}, the site owner needs to add <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> on the server. You can still practise {lang.name} pronunciation on the Speaking page.
+                Offline practice is available for English. To chat in {lang.name}, the site owner needs to add a free <code className="rounded bg-surface-2 px-1">GEMINI_API_KEY</code> (or <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code>) on the server. You can still practise {lang.name} pronunciation on the Speaking page.
               </p>
             </div>
           ) : historyLoading ? (
@@ -435,7 +435,7 @@ function Writing() {
       const b = await res.json();
       if (res.status === 503) {
         // No AI key: rule-based offline checks (English only).
-        if (target !== "en") throw new Error("Offline writing checks are available for English. AI feedback for other languages needs ANTHROPIC_API_KEY on the server.");
+        if (target !== "en") throw new Error("Offline writing checks are available for English. AI feedback for other languages needs GEMINI_API_KEY (free) or ANTHROPIC_API_KEY on the server.");
         setOffline(true);
         setFb(offlineWritingFeedback(text));
         await act({ type: "practice", kind: "writing" }).catch(() => undefined);

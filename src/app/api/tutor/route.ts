@@ -1,7 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AI_MODEL, FALLBACK_BETA, anthropic, guardAiRequest, languageName } from "@/lib/server/ai";
+import { AI_MODEL, FALLBACK_BETA, GEMINI_MODEL, aiProvider, anthropic, friendlyAiError, gemini, guardAiRequest, languageName } from "@/lib/server/ai";
 import { LEVEL_GUIDE, SCENARIOS } from "@/lib/tutor";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +48,7 @@ Rules: use plain text only (no markdown, no emojis in corrections). Never reveal
 
 /** GET /api/tutor – tells the client whether real AI is configured (never exposes the key). */
 export async function GET() {
-  return NextResponse.json({ configured: !!anthropic() });
+  return NextResponse.json({ configured: !!aiProvider(), provider: aiProvider() });
 }
 
 export async function POST(req: Request) {
@@ -65,38 +64,48 @@ export async function POST(req: Request) {
   if (body.messages[0].role !== "user" && body.messages.length > 1) body.messages = body.messages.slice(1);
   if (body.messages.at(-1)?.role !== "user") return NextResponse.json({ error: "The last message must come from the learner" }, { status: 400 });
 
-  const client = anthropic()!;
   const encoder = new TextEncoder();
+  const system = systemPrompt(body);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const s = client.beta.messages.stream({
-          model: AI_MODEL,
-          max_tokens: 4000,
-          system: systemPrompt(body),
-          messages: body.messages,
-          output_config: { effort: "low" },
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
-        });
-        for await (const event of s) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") controller.enqueue(encoder.encode(event.delta.text));
+        if (guard.provider === "gemini") {
+          // Google Gemini (free tier available). Gemini calls the assistant role "model".
+          const s = await gemini()!.models.generateContentStream({
+            model: GEMINI_MODEL,
+            contents: body.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+            config: { systemInstruction: system, maxOutputTokens: 2048, temperature: 0.7 },
+          });
+          let any = false;
+          for await (const chunk of s) {
+            const t = chunk.text;
+            if (t) {
+              any = true;
+              controller.enqueue(encoder.encode(t));
+            }
+          }
+          if (!any) controller.enqueue(encoder.encode("I can't help with that topic – let's get back to practising! What would you like to talk about?"));
+        } else {
+          const s = anthropic()!.beta.messages.stream({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system,
+            messages: body.messages,
+            output_config: { effort: "low" },
+            betas: [FALLBACK_BETA],
+            fallbacks: "default",
+          });
+          for await (const event of s) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") controller.enqueue(encoder.encode(event.delta.text));
+          }
+          const final = await s.finalMessage();
+          if (final.stop_reason === "refusal") controller.enqueue(encoder.encode("\n\nI can't help with that topic – let's get back to practising! What would you like to talk about?"));
         }
-        const final = await s.finalMessage();
-        if (final.stop_reason === "refusal") controller.enqueue(encoder.encode("\n\nI can't help with that topic – let's get back to practising! What would you like to talk about?"));
         controller.close();
       } catch (e) {
         console.error("[tutor]", e);
-        const msg =
-          e instanceof Anthropic.RateLimitError
-            ? "The AI tutor is busy right now. Please try again in a minute."
-            : e instanceof Anthropic.AuthenticationError
-              ? "The AI tutor's API key is invalid. Ask the administrator to check ANTHROPIC_API_KEY."
-              : e instanceof Anthropic.APIConnectionError
-                ? "Couldn't reach the AI service. Check your connection and try again."
-                : "The AI tutor ran into a problem. Please try again.";
-        controller.enqueue(encoder.encode(`\n\n[[error:${msg}]]`));
+        controller.enqueue(encoder.encode(`\n\n[[error:${friendlyAiError(e).message}]]`));
         controller.close();
       }
     },
