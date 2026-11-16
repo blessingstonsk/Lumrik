@@ -88,7 +88,7 @@ export default function SettingsPage() {
             {name.slice(0, 1).toUpperCase() || "?"}
           </span>
           <div className="text-sm text-muted">
-            Learning <strong className="text-fg">{getLanguage(p.targetLang).name}</strong> · speaks {getLanguage(p.nativeLang).name} ·{" "}
+            Learning <strong className="text-fg">{getLanguage(p.targetLang).name}</strong> · speaks {p.nativeLangs.map((c) => getLanguage(c).name).join(", ")} ·{" "}
             <Link href="/languages" className="font-semibold text-primary hover:underline">
               change
             </Link>

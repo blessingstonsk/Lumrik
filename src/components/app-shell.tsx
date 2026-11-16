@@ -14,7 +14,6 @@ import {
   MessageCircle,
   Mic,
   Settings,
-  Shield,
   Trophy,
   Users,
   X,
@@ -104,8 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { state } = useLearner();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const isAdmin = state?.profile.role === "admin";
-  const items = isAdmin ? [...NAV, { href: "/admin", label: "Admin", icon: Shield }] : NAV;
+  const items = NAV;
   const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   React.useEffect(() => setMoreOpen(false), [pathname]);

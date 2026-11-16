@@ -6,7 +6,7 @@
  * Supabase for real multi-device accounts.
  */
 import { browserTimezone } from "../dates";
-import { emptyLearnerState } from "../engine";
+import { emptyLearnerState, normalizeProfile } from "../engine";
 import type { LearnerState, Profile } from "../types";
 
 export interface LocalAccount {
@@ -46,7 +46,7 @@ export function listAccounts(): LocalAccount[] {
   return read<LocalAccount[]>(ACCOUNTS, []);
 }
 
-export async function localSignUp(email: string, password: string, displayName: string) {
+export async function localSignUp(email: string, password: string, displayName: string, role: "learner" | "admin" = "learner") {
   const norm = email.trim().toLowerCase();
   const accounts = listAccounts();
   if (accounts.some((a) => a.email === norm)) throw new Error("An account with this email already exists on this device.");
@@ -58,14 +58,14 @@ export async function localSignUp(email: string, password: string, displayName: 
     email: norm,
     displayName: displayName.trim().slice(0, 40) || norm.split("@")[0],
     nativeLang: "en",
+    nativeLangs: [],
     targetLang: "en",
     proficiency: "beginner",
     goal: "personal",
     dailyMinutes: 10,
     dailyXpGoal: 20,
     timezone: browserTimezone(),
-    // The first account on a device administers local content.
-    role: accounts.length === 0 ? "admin" : "learner",
+    role,
     onboarded: false,
     placementUnit: 1,
     showOnLeaderboard: true,
@@ -94,6 +94,16 @@ export async function localChangePassword(userId: string, password: string) {
   write(ACCOUNTS, accounts);
 }
 
+/** True when an administrator account exists on this device (local mode). */
+export function localAdminExists(): boolean {
+  return listAccounts().some((a) => loadLocalState(a.id)?.profile.role === "admin");
+}
+
+/** Local-mode role lookup used by the admin login. */
+export function localRoleOf(userId: string) {
+  return loadLocalState(userId)?.profile.role ?? "learner";
+}
+
 export function localSignOut() {
   localStorage.removeItem(SESSION);
 }
@@ -104,7 +114,8 @@ export function localSessionAccount(): LocalAccount | null {
 }
 
 export function loadLocalState(userId: string): LearnerState | null {
-  return read<LearnerState | null>(stateKey(userId), null);
+  const s = read<LearnerState | null>(stateKey(userId), null);
+  return s ? { ...s, profile: normalizeProfile(s.profile) } : null;
 }
 
 export function saveLocalState(state: LearnerState) {

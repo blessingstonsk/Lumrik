@@ -23,6 +23,7 @@ export const toProfile = (r: Row): Profile => ({
   email: r.email ?? "",
   displayName: r.display_name,
   nativeLang: r.native_lang,
+  nativeLangs: r.native_langs?.length ? r.native_langs : [r.native_lang],
   targetLang: r.target_lang,
   proficiency: r.proficiency,
   goal: r.goal,
@@ -39,7 +40,7 @@ export const toProfile = (r: Row): Profile => ({
 
 export const fromProfile = (p: Partial<Profile>): Row => {
   const m: Record<string, string> = {
-    displayName: "display_name", nativeLang: "native_lang", targetLang: "target_lang", proficiency: "proficiency",
+    displayName: "display_name", nativeLang: "native_lang", nativeLangs: "native_langs", targetLang: "target_lang", proficiency: "proficiency",
     goal: "goal", dailyMinutes: "daily_minutes", dailyXpGoal: "daily_xp_goal", timezone: "timezone",
     onboarded: "onboarded", placementUnit: "placement_unit", showOnLeaderboard: "show_on_leaderboard", theme: "theme",
   };

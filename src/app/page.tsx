@@ -2,6 +2,7 @@ import { BarChart3, Brain, Flame, Layers, MessageCircle, Mic, Sparkles, Trophy }
 import Link from "next/link";
 import { LandingCta, LandingNavActions } from "@/components/landing-cta";
 import { Logo } from "@/components/logo";
+import { Lumi } from "@/components/lumi";
 import { LANGUAGES } from "@/lib/languages";
 
 const FEATURES = [
@@ -47,6 +48,9 @@ export default function LandingPage() {
           {/* Product preview card */}
           <div className="relative" aria-hidden>
             <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-gradient-to-br from-indigo-500/20 via-emerald-400/10 to-amber-400/20 blur-2xl" />
+            <div className="absolute -right-4 -top-16 z-10 hidden sm:block">
+              <Lumi mood="wave" size={110} label="Lumi, the Lumrik mascot, waving" />
+            </div>
             <div className="rounded-3xl border border-border bg-surface p-6 shadow-xl">
               <div className="flex items-center justify-between text-sm font-bold">
                 <span className="text-muted">Lesson 5 · Introducing yourself</span>
@@ -163,6 +167,9 @@ export default function LandingPage() {
             </Link>
             <Link href="/register" className="hover:text-fg">
               Get started
+            </Link>
+            <Link href="/admin/login" className="hover:text-fg">
+              Admin
             </Link>
           </div>
           <p>© {new Date().getFullYear()} Lumrik</p>

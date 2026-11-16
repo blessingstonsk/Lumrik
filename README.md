@@ -11,7 +11,7 @@ Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer 
 | Area | Status |
 | --- | --- |
 | Email/password sign-up & login, Google OAuth, password reset, persistent sessions | ✅ (Google/reset need Supabase) |
-| 5-step onboarding (native language, target language, level, goal, daily minutes) + optional placement test | ✅ |
+| 5-step onboarding (languages you speak – several allowed, target language, level, goal, daily minutes) + optional placement test | ✅ |
 | 11 languages with native names & script glyphs; Unicode fonts for Tamil, Devanagari, Malayalam, Telugu, Kannada, Japanese, Korean | ✅ |
 | **English for Beginners** course: 6 units, **24 hand-authored lessons, 170 exercises, 123 vocabulary words** (CEFR A1–A2) | ✅ |
 | 7 exercise types: multiple choice, word matching, fill-in-the-blank, listening, speaking, sentence builder, translation | ✅ |
@@ -20,10 +20,11 @@ Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer 
 | Dashboard: daily goal ring, streak, XP, level, proficiency, lessons, words, weekly chart, achievements, recommended next lesson | ✅ |
 | Flashcards with SM-2 spaced repetition; vocabulary notebook (IPA, audio, example, POS, related words, review status, bookmarks) | ✅ |
 | Rule-based adaptive engine: mistake tracking, weak words, review lessons, revision recommendations, daily plan – every recommendation explains *why* | ✅ |
-| AI tutor (streaming): 8 scenarios, 3 difficulty levels, corrections explained in the native language, alternative phrasings, dictation, TTS; AI writing feedback | ✅ (needs `ANTHROPIC_API_KEY`) |
+| AI tutor (streaming): 8 scenarios, 3 difficulty levels, corrections explained in any language the learner speaks, alternative phrasings, dictation, TTS; AI writing feedback | ✅ with `ANTHROPIC_API_KEY`; without a key an **offline practice tutor** (scripted scenarios + rule-based grammar checks, English) takes over |
+| **Lumi**, an animated mascot that greets you, reacts to right/wrong answers, celebrates lesson wins and is the tutor's face | ✅ |
 | Speaking practice: mic recording + playback, sentence repetition, word drills, transcription-based word-level feedback (no fake accent scores) | ✅ (Chrome/Edge/Safari) |
 | Progress analytics, profile & settings (theme, timezone, goal, leaderboard privacy, password) | ✅ |
-| Admin dashboard: courses/units/lessons CRUD + publish/unpublish, JSON exercise editor with schema validation, vocabulary + audio upload, languages, learner analytics, user roles | ✅ |
+| **Separate admin portal** (`/admin/login`) – learners can't sign in there. Courses/units/lessons CRUD + publish/unpublish, JSON exercise editor with schema validation, vocabulary + audio upload, languages, learner analytics, user roles | ✅ |
 | Light/dark mode, responsive (phone/tablet/desktop), keyboard navigation, reduced-motion, PWA manifest + service worker | ✅ |
 
 Other languages' courses are **added through the admin CMS / database** rather than shipped as machine-generated placeholder translations. Until a course is published for a language, learners can still use the AI tutor and speaking practice in it.
@@ -38,7 +39,7 @@ Other languages' courses are **added through the admin CMS / database** rather t
 | Accounts | Stored in this browser (PBKDF2-hashed passwords) | Supabase Auth (email, Google, reset emails) |
 | Progress | `localStorage` | Postgres, written by the server after re-validating answers |
 | Content edits (admin) | Saved in this browser | Postgres with RLS |
-| Admin | First account created on the device | `profiles.role = 'admin'` |
+| Admin | Created once at `/admin/login` (first-time setup on the device) | `profiles.role = 'admin'`, then sign in at `/admin/login` |
 
 Local mode is meant for evaluation and demos; deploy with Supabase for real users.
 
@@ -98,7 +99,7 @@ API keys are only read in server code (`src/lib/server/*`, `src/app/api/*`); not
 ## Setting up Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. **Run the migration** – either paste [supabase/migrations/20261112000000_init.sql](supabase/migrations/20261112000000_init.sql) into the SQL editor, or with the Supabase CLI:
+2. **Run the migrations** – either paste the files in [supabase/migrations](supabase/migrations) into the SQL editor **in order** (`20261112000000_init.sql`, then `20261113000000_native_langs_admin.sql`), or with the Supabase CLI:
    ```bash
    npx supabase link --project-ref YOUR_PROJECT_REF
    ```
@@ -112,10 +113,11 @@ API keys are only read in server code (`src/lib/server/*`, `src/app/api/*`); not
 4. **Auth settings** (Authentication → URL configuration): set *Site URL* to your app URL and add `https://YOUR_DOMAIN/auth/callback` (and `http://localhost:3000/auth/callback`) to *Redirect URLs*.
 5. **Google sign-in** (optional): Authentication → Providers → Google. Create an OAuth client in Google Cloud Console with the redirect URI Supabase shows you, then paste the client ID/secret.
 6. Copy the URL, anon key and service-role key into `.env.local`.
-7. **Make yourself an admin** after signing up (SQL editor):
+7. **Create an admin**: sign up once at `/register`, then in the SQL editor run
    ```sql
    update public.profiles set role = 'admin' where email = 'you@example.com';
    ```
+   Admins sign in at **`/admin/login`** (linked as "Admin sign in" under the learner login and "Admin" in the site footer). Learner accounts are refused there.
 
 ### Data model
 
@@ -160,6 +162,8 @@ The **same engine code** runs in both modes: in local mode the browser applies t
 
 ### Adding a language course
 
+Sign in at `/admin/login`, then:
+
 1. Admin → *Languages*: make sure the language exists and is enabled.
 2. Admin → *Courses & lessons* → **New course** (draft) → add units → add lessons and edit exercises (JSON, validated on save) → add vocabulary and upload native-speaker audio.
 3. Have a fluent speaker review, then **Publish** the course, units and lessons.
@@ -188,6 +192,10 @@ Alternatively author it in TypeScript under `src/content/` (see `src/content/eng
 | All daily missions | +15 bonus (once per day) |
 
 Streaks are computed from `daily_activity` rows keyed by the learner's **local date in their chosen timezone**.
+
+### AI tutor without an API key
+
+When `ANTHROPIC_API_KEY` is not set, `GET /api/tutor` reports `configured: false` and the tutor page switches to **offline practice mode** ([src/lib/offline-tutor.ts](src/lib/offline-tutor.ts)): Lumi follows a script for each scenario, reacts to keywords, and corrects ~20 common beginner mistakes (age with *have*, missing third-person *-s*, *a/an*, *do/does* + base verb, *want to*, question word order, *on Monday*, …). Writing practice gets the same rule-based checks. Offline mode covers English; other target languages need the API key. Add the key and restart – the tutor switches to real AI automatically.
 
 ### Speech
 

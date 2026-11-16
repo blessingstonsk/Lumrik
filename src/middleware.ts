@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED = [
   "/dashboard", "/onboarding", "/placement", "/languages", "/learn", "/lesson", "/tutor", "/speaking",
-  "/vocabulary", "/flashcards", "/achievements", "/leaderboard", "/progress", "/settings", "/admin",
+  "/vocabulary", "/flashcards", "/achievements", "/leaderboard", "/progress", "/settings",
 ];
 
 /**
@@ -28,6 +28,12 @@ export async function middleware(request: NextRequest) {
   });
   const { data } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
+  if (!data.user && path.startsWith("/admin") && path !== "/admin/login") {
+    const to = request.nextUrl.clone();
+    to.pathname = "/admin/login";
+    to.search = "";
+    return NextResponse.redirect(to);
+  }
   if (!data.user && PROTECTED.some((p) => path === p || path.startsWith(p + "/"))) {
     const to = request.nextUrl.clone();
     to.pathname = "/login";

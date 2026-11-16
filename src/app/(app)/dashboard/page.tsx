@@ -14,6 +14,8 @@ import { dailyPlan, dueWords, lessonNodes, recommendNext } from "@/lib/adaptive"
 import { dayKey, lastNDays, weekdayShort } from "@/lib/dates";
 import { ACHIEVEMENTS, computeStats, dailyMissions, levelFromXp, weeklyChallenge, XP } from "@/lib/gamification";
 import { getLanguage } from "@/lib/languages";
+import { speak } from "@/lib/speech";
+import { Lumi, type LumiMood } from "@/components/lumi";
 import { cn, formatNumber } from "@/lib/utils";
 
 function Stat({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: React.ReactNode; sub?: string; tone: string }) {
@@ -53,6 +55,26 @@ export default function DashboardPage() {
   const recent = ACHIEVEMENTS.filter((a) => state.achievements[a.id]).sort((a, b) => state.achievements[b.id].localeCompare(state.achievements[a.id])).slice(0, 3);
   const nextAch = ACHIEVEMENTS.filter((a) => !state.achievements[a.id]).map((a) => ({ a, p: Math.min(1, stats[a.metric] / a.target) })).sort((x, y) => y.p - x.p)[0];
   const lang = getLanguage(state.profile.targetLang);
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const goalDone = todayXp >= state.profile.dailyXpGoal;
+  const lines = [
+    goalDone ? `Daily goal done! You're amazing, ${state.profile.displayName}! 🎉` : stats.streak > 0 ? `${greeting}! Keep your ${stats.streak}-day streak alive 🔥` : `${greeting}, ${state.profile.displayName}! Ready to learn?`,
+    "Tip: say new words out loud – it helps you remember them.",
+    due ? `You have ${due} words waiting in Flashcards.` : "Every lesson adds new flashcards for you.",
+    "Try the AI tutor – I love a good chat!",
+    `Only ${Math.max(0, state.profile.dailyXpGoal - todayXp)} XP to today's goal. You can do it!`,
+  ];
+  const [lumiIdx, setLumiIdx] = React.useState(0);
+  const [lumiMood, setLumiMood] = React.useState<LumiMood>(goalDone ? "celebrate" : "wave");
+  const lumiLine = lines[lumiIdx % lines.length];
+  const pokeLumi = () => {
+    const next = lumiIdx + 1;
+    setLumiIdx(next);
+    setLumiMood("happy");
+    setTimeout(() => setLumiMood("idle"), 1200);
+    void speak(lines[next % lines.length].replace(/[^\p{L}\p{N}\s,.!?'-]/gu, ""), { locale: "en-US" }).catch(() => undefined);
+  };
 
   const claim = async () => {
     setClaiming(true);
@@ -76,7 +98,7 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-indigo-500 p-6 text-white shadow-lg sm:p-8"
       >
-        <div className="relative z-10 max-w-xl">
+        <div className="relative z-10 max-w-xl sm:pr-56">
           <p className="flex items-center gap-2 text-sm font-semibold text-indigo-100">
             <span aria-hidden>{lang.flag}</span> {course?.title ?? `Learning ${lang.name}`}
             {currentUnit && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{currentUnit.cefr} · Unit {currentUnit.order}</span>}
@@ -95,8 +117,19 @@ export default function DashboardPage() {
         </div>
         <div className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/10" aria-hidden />
         <div className="pointer-events-none absolute -bottom-20 right-24 h-48 w-48 rounded-full bg-emerald-400/20" aria-hidden />
-        <div className="absolute right-8 top-1/2 hidden -translate-y-1/2 text-8xl sm:block" aria-hidden>
-          {currentUnit?.icon ?? "🎯"}
+        <div className="absolute bottom-4 right-6 hidden flex-col items-end sm:flex lg:right-10">
+          <motion.div
+            key={lumiLine}
+            initial={{ opacity: 0, y: 6, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="mb-1 max-w-56 rounded-2xl rounded-br-sm bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-lg"
+            aria-live="polite"
+          >
+            {lumiLine}
+          </motion.div>
+          <button type="button" onClick={pokeLumi} aria-label="Talk to Lumi" className="rounded-full transition hover:scale-105">
+            <Lumi mood={lumiMood} size={130} />
+          </button>
         </div>
       </motion.section>
 

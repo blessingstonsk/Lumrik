@@ -158,7 +158,10 @@ export interface Profile {
   id: string;
   email: string;
   displayName: string;
+  /** Primary native language (= nativeLangs[0]); used for explanations. */
   nativeLang: LanguageCode;
+  /** Every language the learner speaks, primary first. */
+  nativeLangs: LanguageCode[];
   targetLang: LanguageCode;
   proficiency: Proficiency;
   goal: LearningGoal;

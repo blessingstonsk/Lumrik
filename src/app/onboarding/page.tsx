@@ -4,8 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { RequireAuth } from "@/components/app-shell";
-import { LanguageGrid } from "@/components/language-picker";
+import { LanguageGrid, LanguageMultiGrid, MainLanguageChips } from "@/components/language-picker";
 import { Logo } from "@/components/logo";
+import { Lumi } from "@/components/lumi";
 import { useLearner } from "@/components/providers/learner";
 import { Button } from "@/components/ui/button";
 import { Badge, ProgressBar } from "@/components/ui/misc";
@@ -54,7 +55,7 @@ function Onboarding() {
   const { state, languages, act } = useLearner();
   const router = useRouter();
   const [step, setStep] = React.useState(0);
-  const [native, setNative] = React.useState<string | null>(state?.profile.nativeLang === "en" && !state?.profile.onboarded ? null : state?.profile.nativeLang ?? null);
+  const [natives, setNatives] = React.useState<string[]>(state?.profile.onboarded ? state.profile.nativeLangs : []);
   const [target, setTarget] = React.useState<string | null>(null);
   const [level, setLevel] = React.useState<Proficiency | null>(null);
   const [goal, setGoal] = React.useState<LearningGoal | null>(null);
@@ -71,7 +72,7 @@ function Onboarding() {
   }, []);
 
   const steps = [
-    { q: "Which language do you speak?", ok: !!native },
+    { q: "Which languages do you speak?", ok: natives.length > 0 },
     { q: "Which language would you like to learn?", ok: !!target },
     { q: "How well do you know it?", ok: !!level },
     { q: "Why are you learning it?", ok: !!goal },
@@ -86,7 +87,7 @@ function Onboarding() {
       await act({
         type: "updateProfile",
         patch: {
-          nativeLang: native!,
+          nativeLangs: natives,
           targetLang: target!,
           proficiency: level!,
           goal: goal!,
@@ -122,21 +123,32 @@ function Onboarding() {
           <motion.div key={step} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }}>
             {!finalStep && (
               <>
-                <p className="text-sm font-semibold text-primary">
-                  Question {step + 1} of {steps.length}
-                </p>
-                <h1 className="mb-6 mt-1 font-display text-2xl font-extrabold sm:text-3xl">{steps[step].q}</h1>
+                <div className="mb-6 flex items-end gap-3">
+                  <Lumi mood={step === 0 ? "wave" : steps[step].ok ? "happy" : "idle"} size={76} className="shrink-0" />
+                  <div className="mb-2 rounded-2xl rounded-bl-sm border border-border bg-surface px-4 py-3 shadow-sm">
+                    <p className="text-xs font-semibold text-primary">
+                      Question {step + 1} of {steps.length}
+                    </p>
+                    <h1 className="font-display text-xl font-extrabold sm:text-2xl">{steps[step].q}</h1>
+                  </div>
+                </div>
               </>
             )}
 
-            {step === 0 && <LanguageGrid label="Your native language" languages={languages} value={native} onChange={setNative} />}
+            {step === 0 && (
+              <>
+                <p className="mb-4 text-sm text-muted">Select every language you speak. The first one you pick is your main language – the tutor explains things in it.</p>
+                <LanguageMultiGrid label="Languages you speak" languages={languages} value={natives} onChange={(v) => { setNatives(v); if (target && v.includes(target)) setTarget(null); }} />
+                <MainLanguageChips languages={languages} value={natives} onChange={setNatives} />
+              </>
+            )}
             {step === 1 && (
               <LanguageGrid
                 label="Language to learn"
                 languages={languages}
                 value={target}
                 onChange={setTarget}
-                disabledCode={native ?? undefined}
+                disabledCodes={natives}
                 badge={(code) => (courseLangs.includes(code) ? <Badge tone="success" className="mt-1">Course available</Badge> : <Badge className="mt-1">AI tutor only</Badge>)}
               />
             )}
@@ -177,7 +189,9 @@ function Onboarding() {
             )}
             {finalStep && target && (
               <div className="text-center">
-                <div className="text-6xl">{getLanguage(target).flag}</div>
+                <div className="flex justify-center">
+                  <Lumi mood="celebrate" size={130} />
+                </div>
                 <h1 className="mt-4 font-display text-3xl font-extrabold">You&apos;re all set!</h1>
                 <p className="mx-auto mt-2 max-w-md text-muted">
                   {hasCourse

@@ -13,7 +13,7 @@ interface AuthCtx {
   user: AuthUser | null;
   ready: boolean;
   mode: "supabase" | "local";
-  signUp: (email: string, password: string, displayName: string) => Promise<{ needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, displayName: string, role?: "learner" | "admin") => Promise<{ needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -65,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       ready,
       mode: isSupabaseEnabled ? "supabase" : "local",
-      async signUp(email, password, displayName) {
+      async signUp(email, password, displayName, role = "learner") {
         if (!isSupabaseEnabled) {
-          const acc = await localSignUp(email, password, displayName);
+          const acc = await localSignUp(email, password, displayName, role);
           setUser({ id: acc.id, email: acc.email });
           return { needsConfirmation: false };
         }

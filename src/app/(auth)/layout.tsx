@@ -1,4 +1,5 @@
 import { Logo } from "@/components/logo";
+import { Lumi } from "@/components/lumi";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               </span>
             ))}
           </div>
+        </div>
+        <div className="flex items-end gap-3">
+          <Lumi mood="wave" size={120} />
+          <p className="mb-6 rounded-2xl rounded-bl-sm bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg">Hi, I&apos;m Lumi! Let&apos;s learn together.</p>
         </div>
         <p className="text-sm text-indigo-100">© {new Date().getFullYear()} Lumrik</p>
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10" />

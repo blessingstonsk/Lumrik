@@ -12,7 +12,7 @@ import type { Exercise, LearnerState, Profile } from "../types";
 import { canonicalAnswer } from "./content.test";
 
 const profile = (tz = "UTC"): Profile => ({
-  id: "u1", email: "t@example.test", displayName: "T", nativeLang: "ta", targetLang: "en", proficiency: "beginner",
+  id: "u1", email: "t@example.test", displayName: "T", nativeLang: "ta", nativeLangs: ["ta"], targetLang: "en", proficiency: "beginner",
   goal: "travel", dailyMinutes: 10, dailyXpGoal: 20, timezone: tz, role: "learner", onboarded: true, placementUnit: 1,
   showOnLeaderboard: true, theme: "system", createdAt: new Date().toISOString(),
 });
@@ -140,4 +140,39 @@ test("tutor reply parser extracts correction, reply and alternatives (even mid-s
   const partial = parseTutorReply("<correction>\noriginal: I has");
   assert.equal(partial.reply, "");
   assert.equal(parseTutorReply("Hello there <alterna").reply, "Hello there");
+});
+
+import { checkGrammar, offlineTutorReply, offlineWritingFeedback } from "../offline-tutor";
+
+test("offline tutor corrects common beginner mistakes without false alarms", () => {
+  const cases: [string, string | null][] = [
+    ["I have 25 years.", "I am 25 years old."],
+    ["She go to school every day.", "She goes to school every day."],
+    ["Does she likes tea?", "Does she like tea?"],
+    ["I want go home.", "I want to go home."],
+    ["I eat a apple.", "I eat an apple."],
+    ["They is my friends.", "They are my friends."],
+    ["Where you are from", "Where are you from?"],
+    ["Does he like tea?", null],
+    ["My friends are nice.", null],
+    ["He has a car.", null],
+    ["I'm fine, thanks.", null],
+  ];
+  for (const [input, expected] of cases) assert.equal(checkGrammar(input)?.corrected ?? null, expected, input);
+});
+
+test("offline tutor replies in the tagged tutor format and follows the scenario", () => {
+  const first = offlineTutorReply([{ role: "user", content: "Hello" }], "food");
+  assert.match(first, /menu/i);
+  const reply = offlineTutorReply([{ role: "user", content: "Hi" }, { role: "assistant", content: "…" }, { role: "user", content: "I have 20 years" }], "free");
+  assert.match(reply, /<correction>[\s\S]*corrected: I am 20 years old/);
+  const fb = offlineWritingFeedback("My sister go to school. I have 20 years.");
+  assert.equal(fb.issues.length, 2);
+  assert.match(fb.corrected, /My sister goes to school\. I am 20 years old\./);
+});
+
+test("profile patch keeps the main native language first", () => {
+  const p = sanitizeProfilePatch({ nativeLangs: ["ta", "hi", "ta"] });
+  assert.deepEqual(p.nativeLangs, ["ta", "hi"]);
+  assert.equal(p.nativeLang, "ta");
 });

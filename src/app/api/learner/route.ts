@@ -45,8 +45,8 @@ export async function POST(req: Request) {
   try {
     const state = await loadLearnerState(db, user.id);
     if (action.type === "updateProfile") {
-      for (const key of ["nativeLang", "targetLang"] as const) {
-        const code = action.patch?.[key];
+      const codes = [action.patch?.nativeLang, action.patch?.targetLang, ...(Array.isArray(action.patch?.nativeLangs) ? action.patch.nativeLangs : [])];
+      for (const code of codes) {
         if (code !== undefined) {
           const { count } = await db.from("languages").select("code", { count: "exact", head: true }).eq("code", code).eq("enabled", true);
           if (!count) return NextResponse.json({ error: `Unknown language: ${code}` }, { status: 400 });

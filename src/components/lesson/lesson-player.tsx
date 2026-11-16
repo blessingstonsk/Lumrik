@@ -12,6 +12,7 @@ import { getLanguage } from "@/lib/languages";
 import type { AnswerSubmission, Exercise, Lesson, LessonCompletionResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { checkAnswer } from "@/lib/validation";
+import { Lumi } from "@/components/lumi";
 import { Confetti } from "./celebration";
 import { ExerciseView } from "./exercises";
 
@@ -116,9 +117,12 @@ export function LessonPlayer({ lesson, mode = "lesson", nextLessonId }: LessonPl
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Lesson</p>
           <h1 className="mt-1 font-display text-3xl font-extrabold">{lesson.title}</h1>
           <p className="mt-2 text-muted">{lesson.description}</p>
-          <div className="mt-6 flex gap-3 rounded-2xl bg-amber-500/10 p-4">
-            <Lightbulb className="h-6 w-6 shrink-0 text-amber-500" aria-hidden />
-            <p className="text-sm leading-relaxed">{lesson.tip}</p>
+          <div className="mt-6 flex items-end gap-3">
+            <Lumi mood="wave" size={84} className="shrink-0" />
+            <div className="mb-3 flex gap-2 rounded-2xl rounded-bl-sm bg-amber-500/10 p-4">
+              <Lightbulb className="h-5 w-5 shrink-0 text-amber-500" aria-hidden />
+              <p className="text-sm leading-relaxed">{lesson.tip}</p>
+            </div>
           </div>
           <p className="mt-6 text-sm text-muted">
             {total} exercises · about {Math.max(2, Math.round(total * 0.6))} minutes
@@ -153,7 +157,10 @@ export function LessonPlayer({ lesson, mode = "lesson", nextLessonId }: LessonPl
         ) : current ? (
             <motion.div key={`${current.id}-${pos}`} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.2 }}>
               {pos >= total && <p className="mb-2 text-sm font-semibold text-amber-600 dark:text-amber-400">Let&apos;s try this one again</p>}
-              <h1 className="mb-6 text-lg font-bold text-muted">{current.instruction}</h1>
+              <div className="mb-6 flex items-center gap-3">
+                <Lumi mood={value !== null ? "thinking" : "idle"} size={52} className="shrink-0" />
+                <h1 className="rounded-2xl rounded-bl-sm border border-border bg-surface px-4 py-2 text-lg font-bold">{current.instruction}</h1>
+              </div>
               <ExerciseView
                 exercise={current}
                 value={value}
@@ -179,7 +186,10 @@ export function LessonPlayer({ lesson, mode = "lesson", nextLessonId }: LessonPl
           <div aria-live="assertive" className="min-h-6">
             {feedback && (
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
-                {feedback.correct ? <CheckCircle2 className="h-8 w-8 shrink-0 text-emerald-500" aria-hidden /> : <XCircle className="h-8 w-8 shrink-0 text-rose-500" aria-hidden />}
+                <span className="relative shrink-0">
+                  <Lumi key={String(feedback.correct) + pos} mood={feedback.skipped ? "idle" : feedback.correct ? "happy" : "sad"} size={56} />
+                  {feedback.correct ? <CheckCircle2 className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-white text-emerald-500" aria-hidden /> : <XCircle className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-white text-rose-500" aria-hidden />}
+                </span>
                 <div>
                   <p className={cn("font-display text-lg font-extrabold", feedback.correct ? "text-emerald-700 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300")}>
                     {feedback.skipped ? "Skipped" : feedback.correct ? (feedback.typo ? "Correct – watch the spelling!" : "Great job!") : "Not quite"}
@@ -243,8 +253,8 @@ function LessonSummary({ lesson, result, seconds, nextLessonId }: { lesson: Less
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-4 py-10 text-center">
       {great && <Confetti />}
-      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", damping: 12 }} className="text-7xl">
-        {result.perfect ? "🏆" : great ? "🎉" : "💪"}
+      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", damping: 12 }}>
+        <Lumi mood={great ? "celebrate" : "happy"} size={140} label={great ? "Lumi celebrating" : "Lumi cheering you on"} />
       </motion.div>
       <h1 className="mt-4 font-display text-3xl font-extrabold">{result.perfect ? "Perfect lesson!" : great ? "Lesson complete!" : "Good effort!"}</h1>
       <p className="mt-1 text-muted">{lesson.title}</p>

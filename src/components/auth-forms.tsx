@@ -132,6 +132,12 @@ export function LoginForm() {
           Create an account
         </Link>
       </p>
+      <p className="mt-3 text-center text-xs text-muted">
+        Site administrator?{" "}
+        <Link href="/admin/login" className="font-semibold hover:text-fg hover:underline">
+          Admin sign in
+        </Link>
+      </p>
     </div>
   );
 }

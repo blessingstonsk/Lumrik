@@ -3,14 +3,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, Lightbulb, Mic, Plus, Send, Sparkles, Square, Wand2 } from "lucide-react";
 import * as React from "react";
 import { SpeakButton } from "@/components/lesson/exercises";
+import { Lumi } from "@/components/lumi";
 import { useAuth } from "@/components/providers/auth";
 import { useLearner, useLearnerState } from "@/components/providers/learner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select, Switch, Textarea } from "@/components/ui/form";
+import { Select, Textarea } from "@/components/ui/form";
 import { Badge, ErrorState, PageHeader, Tabs } from "@/components/ui/misc";
 import { appendMessages, createConversation, latestConversation, type Conversation } from "@/lib/data/tutor-history";
 import { fontClassFor, getLanguage } from "@/lib/languages";
+import { offlineTutorReply, offlineWritingFeedback } from "@/lib/offline-tutor";
 import { useRecognizer } from "@/lib/speech";
 import { parseTutorReply, SCENARIOS, type TutorLevel, type TutorMessage } from "@/lib/tutor";
 import { cn } from "@/lib/utils";
@@ -21,7 +23,9 @@ const LEVEL_FOR: Record<string, TutorLevel> = { beginner: "easy", elementary: "e
 function AssistantBubble({ raw, locale, lang, streaming }: { raw: string; locale: string; lang: string; streaming?: boolean }) {
   const p = parseTutorReply(raw);
   return (
-    <div className="max-w-[85%] space-y-2">
+    <div className="flex max-w-[90%] items-start gap-2">
+    <Lumi mood={streaming ? "talking" : p.correction ? "thinking" : "idle"} size={40} className="mt-1 shrink-0" label="Lumi, your tutor" />
+    <div className="min-w-0 space-y-2">
       {p.correction && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
           <p className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-700 dark:text-amber-300">
@@ -59,7 +63,47 @@ function AssistantBubble({ raw, locale, lang, streaming }: { raw: string; locale
         </div>
       )}
     </div>
+    </div>
   );
+}
+
+type TutorModeValue = "checking" | "ai" | "offline";
+let cachedMode: TutorModeValue | null = null;
+
+/** Whether the server has an AI key. Without one, the tutor runs in offline practice mode. */
+function useTutorMode() {
+  const [value, setValue] = React.useState<TutorModeValue>(cachedMode ?? "checking");
+  React.useEffect(() => {
+    if (cachedMode) return;
+    fetch("/api/tutor", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((b: { configured?: boolean }) => {
+        cachedMode = b.configured ? "ai" : "offline";
+        setValue(cachedMode);
+      })
+      .catch(() => setValue("ai"));
+  }, []);
+  const set = React.useCallback((v: TutorModeValue) => {
+    cachedMode = v;
+    setValue(v);
+  }, []);
+  return { value, set };
+}
+
+/** Reveal an offline reply gradually so it feels like the tutor is typing. */
+async function streamOffline(full: string, onText: (t: string) => void): Promise<string> {
+  await new Promise((r) => setTimeout(r, 450));
+  const words = full.split(/(\s+)/);
+  let out = "";
+  for (let i = 0; i < words.length; i++) {
+    out += words[i];
+    if (i % 4 === 0) {
+      onText(out);
+      await new Promise((r) => setTimeout(r, 30));
+    }
+  }
+  onText(full);
+  return full;
 }
 
 function Conversation() {
@@ -70,13 +114,15 @@ function Conversation() {
   const lang = getLanguage(target);
   const [scenario, setScenario] = React.useState("free");
   const [level, setLevel] = React.useState<TutorLevel>(LEVEL_FOR[state.profile.proficiency] ?? "easy");
-  const [explainNative, setExplainNative] = React.useState(state.profile.nativeLang !== target);
+  const spoken = state.profile.nativeLangs.filter((c) => c !== target);
+  const [explainLang, setExplainLang] = React.useState<string>(spoken[0] ?? target);
+  const mode = useTutorMode();
+  const offlineUnsupported = mode.value === "offline" && target !== "en";
   const [conv, setConv] = React.useState<Conversation | null>(null);
   const [messages, setMessages] = React.useState<TutorMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [streamingText, setStreamingText] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [notConfigured, setNotConfigured] = React.useState(false);
   const [historyLoading, setHistoryLoading] = React.useState(true);
   const endRef = React.useRef<HTMLDivElement>(null);
   const rec = useRecognizer(lang.speechLocale);
@@ -108,28 +154,35 @@ function Conversation() {
     setStreamingText("");
     let reply = "";
     try {
-      const res = await fetch("/api/tutor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.slice(-30), scenario, level, targetLang: target, nativeLang: state.profile.nativeLang, explainInNative: explainNative }),
-      });
-      if (!res.ok || !res.body) {
+      const res =
+        mode.value === "offline"
+          ? null
+          : await fetch("/api/tutor", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messages: history.slice(-30), scenario, level, targetLang: target, nativeLang: explainLang, explainInNative: explainLang !== target }),
+            });
+      if (!res || res.status === 503) {
+        // No API key on the server: use the built-in offline practice tutor.
+        if (res) mode.set("offline");
+        reply = await streamOffline(offlineTutorReply(history, scenario), setStreamingText);
+      } else if (!res.ok || !res.body) {
         const b = await res.json().catch(() => ({}));
-        if (b.code === "not_configured") setNotConfigured(true);
         throw new Error(b.error ?? `Request failed (${res.status})`);
-      }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        reply += dec.decode(value, { stream: true });
-        setStreamingText(reply.replace(/\n*\[\[error:[\s\S]*$/, ""));
-      }
-      const err = reply.match(/\[\[error:([\s\S]*?)\]\]/);
-      if (err) {
-        reply = reply.replace(/\n*\[\[error:[\s\S]*$/, "").trim();
-        setError(err[1]);
+      } else {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          reply += dec.decode(value, { stream: true });
+          setStreamingText(reply.replace(/\n*\[\[error:[\s\S]*$/, ""));
+        }
+        const err = reply.match(/\[\[error:([\s\S]*?)\]\]/);
+        if (err) {
+          reply = reply.replace(/\n*\[\[error:[\s\S]*$/, "").trim();
+          setError(err[1]);
+        }
       }
       if (reply.trim()) {
         const all: TutorMessage[] = [...history, { role: "assistant", content: reply }];
@@ -198,11 +251,19 @@ function Conversation() {
               <option value="hard">Hard (C1)</option>
             </Select>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="explain-native" className="text-sm font-semibold">
-              Explain in {getLanguage(state.profile.nativeLang).name}
+          <div>
+            <label htmlFor="explain-lang" className="mb-1.5 block text-sm font-bold">
+              Explain mistakes in
             </label>
-            <Switch id="explain-native" checked={explainNative} onChange={setExplainNative} label={`Explain mistakes in ${getLanguage(state.profile.nativeLang).name}`} />
+            <Select id="explain-lang" value={explainLang} onChange={(e) => setExplainLang(e.target.value)} disabled={mode.value === "offline"}>
+              {spoken.map((c) => (
+                <option key={c} value={c}>
+                  {getLanguage(c).nativeName} ({getLanguage(c).name})
+                </option>
+              ))}
+              <option value={target}>{lang.name} only</option>
+            </Select>
+            {mode.value === "offline" && <p className="mt-1 text-xs text-muted">Offline practice explains in English.</p>}
           </div>
           <Button variant="outline" size="sm" block onClick={newConversation}>
             <Plus className="h-4 w-4" /> New conversation
@@ -212,33 +273,48 @@ function Conversation() {
 
       <Card className="flex h-[min(70dvh,44rem)] flex-col p-0">
         <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-          <span className="text-2xl" aria-hidden>{scen.icon}</span>
+          <Lumi mood={streamingText !== null ? "talking" : "idle"} size={44} className="shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="font-bold">{scen.title}</p>
+            <p className="font-bold">
+              Lumi · <span aria-hidden>{scen.icon}</span> {scen.title}
+            </p>
             <p className="truncate text-xs text-muted">
               Practising {lang.name} · {level}
             </p>
           </div>
-          <Badge tone="primary">
-            <Sparkles className="h-3 w-3" /> AI
-          </Badge>
+          {mode.value === "offline" ? (
+            <Badge tone="warning" title="No AI key on the server – using built-in practice scripts">Offline practice</Badge>
+          ) : (
+            <Badge tone="primary">
+              <Sparkles className="h-3 w-3" /> AI
+            </Badge>
+          )}
         </div>
+        {mode.value === "offline" && !offlineUnsupported && (
+          <p className="border-b border-border bg-amber-500/10 px-5 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Offline practice mode: Lumi follows a scenario script and catches common beginner mistakes. For free-flowing AI conversation, add <code>ANTHROPIC_API_KEY</code> on the server.
+          </p>
+        )}
 
         <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto px-5 py-4" aria-live="polite" aria-busy={streamingText !== null}>
-          {notConfigured ? (
+          {offlineUnsupported ? (
             <div className="mx-auto max-w-md py-8 text-center">
               <div className="text-4xl">🔌</div>
               <h3 className="mt-2 font-display text-lg font-bold">AI tutor not connected</h3>
               <p className="mt-1 text-sm text-muted">
-                The server has no <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code>. Add it to <code className="rounded bg-surface-2 px-1">.env.local</code> and restart the server – the key stays on the server and is never sent to the browser.
+                Offline practice is available for English. To chat in {lang.name}, the site owner needs to add <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> on the server. You can still practise {lang.name} pronunciation on the Speaking page.
               </p>
             </div>
           ) : historyLoading ? (
             <p className="py-8 text-center text-sm text-muted">Loading conversation…</p>
           ) : messages.length === 0 && streamingText === null ? (
             <div className="mx-auto max-w-md py-8 text-center">
-              <div className="text-5xl">{scen.icon}</div>
-              <h3 className="mt-3 font-display text-lg font-bold">{scen.title}</h3>
+              <div className="flex justify-center">
+                <Lumi mood="wave" size={110} />
+              </div>
+              <h3 className="mt-3 font-display text-lg font-bold">
+                Hi, I&apos;m Lumi! <span aria-hidden>{scen.icon}</span> {scen.title}
+              </h3>
               <p className="mt-1 text-sm text-muted">Write (or say) anything in {lang.name}. Your tutor will reply in character and gently correct mistakes.</p>
               <Button variant="outline" size="sm" className="mt-4" onClick={() => send(scen.opener)}>
                 Try: &ldquo;{scen.opener}&rdquo;
@@ -264,12 +340,15 @@ function Conversation() {
               {streamingText ? (
                 <AssistantBubble raw={streamingText} locale={lang.speechLocale} lang={target} streaming />
               ) : (
+                <div className="flex items-center gap-2">
+                <Lumi mood="thinking" size={40} />
                 <div className="rounded-2xl bg-surface-2 px-4 py-3" aria-label="Tutor is typing">
                   <span className="flex gap-1">
                     {[0, 1, 2].map((d) => (
                       <motion.span key={d} className="h-2 w-2 rounded-full bg-muted" animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: d * 0.15 }} />
                     ))}
                   </span>
+                </div>
                 </div>
               )}
             </div>
@@ -313,7 +392,7 @@ function Conversation() {
             className={cn("min-h-11 resize-none py-2.5", fontClassFor(target))}
             lang={target}
           />
-          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={!input.trim() || streamingText !== null || notConfigured} aria-label="Send message">
+          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={!input.trim() || streamingText !== null || offlineUnsupported} aria-label="Send message">
             <Send className="h-5 w-5" />
           </Button>
         </form>
@@ -341,6 +420,7 @@ function Writing() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [fb, setFb] = React.useState<WritingFeedback | null>(null);
+  const [offline, setOffline] = React.useState(false);
 
   const submit = async () => {
     setLoading(true);
@@ -353,7 +433,16 @@ function Writing() {
         body: JSON.stringify({ prompt, text, targetLang: target, nativeLang: state.profile.nativeLang, level: LEVEL_FOR[state.profile.proficiency] ?? "easy" }),
       });
       const b = await res.json();
+      if (res.status === 503) {
+        // No AI key: rule-based offline checks (English only).
+        if (target !== "en") throw new Error("Offline writing checks are available for English. AI feedback for other languages needs ANTHROPIC_API_KEY on the server.");
+        setOffline(true);
+        setFb(offlineWritingFeedback(text));
+        await act({ type: "practice", kind: "writing" }).catch(() => undefined);
+        return;
+      }
       if (!res.ok) throw new Error(b.error ?? "Request failed");
+      setOffline(false);
       setFb(b.feedback);
       await act({ type: "practice", kind: "writing" }).catch(() => undefined);
     } catch (e) {
@@ -396,7 +485,7 @@ function Writing() {
         {fb && (
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold">Feedback</h2>
+              <h2 className="font-display text-lg font-bold">Feedback {offline && <span className="text-xs font-semibold text-amber-600">· offline check</span>}</h2>
               <Badge tone={fb.score >= 80 ? "success" : fb.score >= 50 ? "warning" : "danger"}>{fb.score}/100</Badge>
             </div>
             {fb.issues.length === 0 ? (

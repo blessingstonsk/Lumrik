@@ -235,7 +235,7 @@ export function completePlacement(state: LearnerState, questions: PlacementQuest
 // ── Profile ─────────────────────────────────────────────────
 
 const EDITABLE: (keyof Profile)[] = [
-  "displayName", "nativeLang", "targetLang", "proficiency", "goal", "dailyMinutes", "dailyXpGoal",
+  "displayName", "nativeLang", "nativeLangs", "targetLang", "proficiency", "goal", "dailyMinutes", "dailyXpGoal",
   "timezone", "onboarded", "showOnLeaderboard", "theme",
 ];
 
@@ -245,6 +245,16 @@ export function sanitizeProfilePatch(patch: Partial<Profile>): Partial<Profile> 
   for (const k of EDITABLE) if (k in patch) (out as Record<string, unknown>)[k] = patch[k];
   if (out.displayName !== undefined) out.displayName = String(out.displayName).trim().slice(0, 40) || "Learner";
   if (out.dailyMinutes !== undefined) out.dailyMinutes = Math.min(120, Math.max(5, Number(out.dailyMinutes) || 10));
+  if (out.nativeLangs !== undefined) {
+    const list = [...new Set((Array.isArray(out.nativeLangs) ? out.nativeLangs : []).map(String).filter(Boolean))].slice(0, 6);
+    if (list.length === 0) delete out.nativeLangs;
+    else {
+      out.nativeLangs = list;
+      out.nativeLang = list[0];
+    }
+  } else if (out.nativeLang !== undefined) {
+    out.nativeLangs = [out.nativeLang];
+  }
   if (out.dailyXpGoal !== undefined) out.dailyXpGoal = Math.min(500, Math.max(10, Number(out.dailyXpGoal) || 20));
   return out;
 }
@@ -267,6 +277,12 @@ export function applyWrites(state: LearnerState, w: Writes): LearnerState {
   for (const v of w.vocab ?? []) next.vocab[v.wordId] = v;
   for (const a of w.achievements ?? []) next.achievements[a.id] = a.unlockedAt;
   return next;
+}
+
+/** Older saved profiles only had a single native language. */
+export function normalizeProfile(p: Profile): Profile {
+  const langs = Array.isArray(p.nativeLangs) && p.nativeLangs.length ? p.nativeLangs : [p.nativeLang];
+  return { ...p, nativeLangs: langs, nativeLang: langs[0] };
 }
 
 export function emptyLearnerState(profile: Profile): LearnerState {
