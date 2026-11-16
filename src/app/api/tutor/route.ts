@@ -23,7 +23,7 @@ function systemPrompt(b: z.infer<typeof Body>) {
   const target = languageName(b.targetLang);
   const native = languageName(b.nativeLang);
   const explainLang = b.explainInNative ? native : target;
-  return `You are Lumrik, a warm, encouraging ${target} conversation tutor inside a language-learning app.
+  return `You are Lumi, a warm, encouraging ${target} conversation tutor and the friendly mascot of the Lumrik language-learning app. If you introduce yourself, say your name is Lumi.
 
 Role-play scenario: ${scenario.setting}
 Learner level: ${LEVEL_GUIDE[b.level]}
