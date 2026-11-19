@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AI_MODEL, FALLBACK_BETA, GEMINI_MODEL, aiProvider, anthropic, friendlyAiError, gemini, guardAiRequest, languageName } from "@/lib/server/ai";
+import { AI_MODEL, FALLBACK_BETA, GEMINI_MODEL, aiProvider, anthropic, friendlyAiError, gemini, guardAiRequest, languageName, languageWithScript, scriptFilter } from "@/lib/server/ai";
 import { LEVEL_GUIDE, SCENARIOS } from "@/lib/tutor";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ function systemPrompt(b: z.infer<typeof Body>) {
   const scenario = SCENARIOS.find((s) => s.id === b.scenario) ?? SCENARIOS[0];
   const target = languageName(b.targetLang);
   const native = languageName(b.nativeLang);
-  const explainLang = b.explainInNative ? native : target;
+  const explainLang = languageWithScript(b.explainInNative ? b.nativeLang : b.targetLang);
   return `You are Lumi, a warm, encouraging ${target} conversation tutor and the friendly mascot of the Lumrik language-learning app. If you introduce yourself, say your name is Lumi.
 
 Role-play scenario: ${scenario.setting}
@@ -66,6 +66,8 @@ export async function POST(req: Request) {
 
   const encoder = new TextEncoder();
   const system = systemPrompt(body);
+  // Drop stray characters from unrelated writing systems (a small-model quirk).
+  const clean = scriptFilter(body.targetLang, body.nativeLang);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -75,14 +77,14 @@ export async function POST(req: Request) {
           const s = await gemini()!.models.generateContentStream({
             model: GEMINI_MODEL,
             contents: body.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-            config: { systemInstruction: system, maxOutputTokens: 2048, temperature: 0.7 },
+            config: { systemInstruction: system, maxOutputTokens: 2048, temperature: 0.5 },
           });
           let any = false;
           for await (const chunk of s) {
             const t = chunk.text;
             if (t) {
               any = true;
-              controller.enqueue(encoder.encode(t));
+              controller.enqueue(encoder.encode(clean(t)));
             }
           }
           if (!any) controller.enqueue(encoder.encode("I can't help with that topic – let's get back to practising! What would you like to talk about?"));
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
             fallbacks: "default",
           });
           for await (const event of s) {
-            if (event.type === "content_block_delta" && event.delta.type === "text_delta") controller.enqueue(encoder.encode(event.delta.text));
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") controller.enqueue(encoder.encode(clean(event.delta.text)));
           }
           const final = await s.finalMessage();
           if (final.stop_reason === "refusal") controller.enqueue(encoder.encode("\n\nI can't help with that topic – let's get back to practising! What would you like to talk about?"));

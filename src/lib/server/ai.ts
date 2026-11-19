@@ -98,3 +98,37 @@ export async function guardAiRequest(req: Request, scope: string, limit = 40): P
 export function languageName(code: string) {
   return getLanguage(code).name;
 }
+
+const SCRIPT_CLASSES: Record<string, string[]> = {
+  Latin: ["Latin"],
+  Tamil: ["Tamil"],
+  Devanagari: ["Devanagari"],
+  Malayalam: ["Malayalam"],
+  Telugu: ["Telugu"],
+  Kannada: ["Kannada"],
+  Japanese: ["Han", "Hiragana", "Katakana"],
+  Hangul: ["Hangul"],
+};
+
+/**
+ * Small models occasionally slip stray characters from unrelated writing systems into
+ * their output (e.g. a Chinese character inside a Tamil sentence). This returns a filter
+ * that removes letters whose script is neither Latin nor one of the given languages' scripts.
+ */
+export function scriptFilter(...codes: string[]) {
+  const scripts = new Set<string>(["Latin", "Common", "Inherited"]);
+  for (const c of codes) for (const s of SCRIPT_CLASSES[getLanguage(c).script] ?? []) scripts.add(s);
+  const allowed = [...scripts].map((s) => String.raw`\p{Script=${s}}`).join("");
+  const re = new RegExp(String.raw`(?![${allowed}])[\p{L}\p{M}]`, "gu");
+  return (text: string) => text.replace(re, "");
+}
+
+/**
+ * Name of a language plus a script rule for prompts. Models sometimes write Indic or
+ * East-Asian languages in Latin letters (e.g. "Tanglish"); this asks for the native script.
+ */
+export function languageWithScript(code: string) {
+  const l = getLanguage(code);
+  if (l.script === "Latin") return l.name;
+  return `${l.name} (written in the ${l.script} script, like "${l.nativeName}" – never transliterated into English/Latin letters)`;
+}

@@ -16,7 +16,7 @@ import { ACHIEVEMENTS, computeStats, dailyMissions, levelFromXp, weeklyChallenge
 import { getLanguage } from "@/lib/languages";
 import { speak } from "@/lib/speech";
 import { Lumi, type LumiMood } from "@/components/lumi";
-import { cn, formatNumber } from "@/lib/utils";
+import { cn, formatNumber, plural } from "@/lib/utils";
 
 function Stat({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: React.ReactNode; sub?: string; tone: string }) {
   return (
@@ -61,7 +61,7 @@ export default function DashboardPage() {
   const lines = [
     goalDone ? `Daily goal done! You're amazing, ${state.profile.displayName}! 🎉` : stats.streak > 0 ? `${greeting}! Keep your ${stats.streak}-day streak alive 🔥` : `${greeting}, ${state.profile.displayName}! Ready to learn?`,
     "Tip: say new words out loud – it helps you remember them.",
-    due ? `You have ${due} words waiting in Flashcards.` : "Every lesson adds new flashcards for you.",
+    due ? `You have ${plural(due, "word")} waiting in Flashcards.` : "Every lesson adds new flashcards for you.",
     "Try the AI tutor – I love a good chat!",
     `Only ${Math.max(0, state.profile.dailyXpGoal - todayXp)} XP to today's goal. You can do it!`,
   ];
@@ -98,7 +98,7 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-indigo-500 p-6 text-white shadow-lg sm:p-8"
       >
-        <div className="relative z-10 max-w-xl sm:pr-56">
+        <div className="relative z-10 max-w-xl lg:max-w-none lg:pr-64">
           <p className="flex items-center gap-2 text-sm font-semibold text-indigo-100">
             <span aria-hidden>{lang.flag}</span> {course?.title ?? `Learning ${lang.name}`}
             {currentUnit && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{currentUnit.cefr} · Unit {currentUnit.order}</span>}
@@ -117,7 +117,7 @@ export default function DashboardPage() {
         </div>
         <div className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/10" aria-hidden />
         <div className="pointer-events-none absolute -bottom-20 right-24 h-48 w-48 rounded-full bg-emerald-400/20" aria-hidden />
-        <div className="absolute bottom-4 right-6 hidden flex-col items-end sm:flex lg:right-10">
+        <div className="absolute bottom-4 right-6 hidden flex-col items-end lg:flex xl:right-10">
           <motion.div
             key={lumiLine}
             initial={{ opacity: 0, y: 6, scale: 0.95 }}
@@ -200,7 +200,7 @@ export default function DashboardPage() {
             {claimed ? "Reward claimed today" : allDone ? `Claim +${XP.missionsBonus} XP` : "Complete all to unlock a bonus"}
           </Button>
           <div className="mt-5 rounded-2xl border border-border p-3">
-            <p className="text-xs font-semibold uppercase text-muted">Weekly challenge · {weekly.endsIn} days left</p>
+            <p className="text-xs font-semibold uppercase text-muted">Weekly challenge · {plural(weekly.endsIn, "day")} left</p>
             <p className="mt-1 text-sm font-bold">{weekly.title}</p>
             <ProgressBar value={weekly.progress / weekly.target} className="mt-2 h-2" color="bg-primary" label="Weekly challenge" />
             <p className="mt-1 text-xs text-muted">

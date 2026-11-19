@@ -701,7 +701,9 @@ function LearnersTab() {
         setStats(s.data as AdminStats);
         setRows((p.data ?? []).map((r) => ({ id: r.id, name: r.display_name, email: r.email ?? "", xp: r.xp_total, role: r.role, targetLang: r.target_lang, createdAt: r.created_at })));
       } else {
-        const states = allLocalStates();
+        const everyone = allLocalStates();
+        // Statistics describe learners only; admin accounts are listed in the users table but not counted.
+        const states = everyone.filter((s) => s.profile.role !== "admin");
         const today = dayKey(new Date(), me.profile.timezone);
         const since = addDays(today, -7);
         const attempts = states.flatMap((s) => s.recentAttempts.filter((a) => a.createdAt >= new Date(Date.now() - 7 * 86400000).toISOString()));
@@ -728,7 +730,7 @@ function LearnersTab() {
             .sort((a, b) => a.accuracy - b.accuracy)
             .slice(0, 10),
         });
-        setRows(states.map((s) => ({ id: s.profile.id, name: s.profile.displayName, email: s.profile.email, xp: s.xpTotal, role: s.profile.role, targetLang: s.profile.targetLang, createdAt: s.profile.createdAt })).sort((a, b) => b.xp - a.xp));
+        setRows(everyone.map((s) => ({ id: s.profile.id, name: s.profile.displayName, email: s.profile.email, xp: s.xpTotal, role: s.profile.role, targetLang: s.profile.targetLang, createdAt: s.profile.createdAt })).sort((a, b) => b.xp - a.xp));
       }
     } catch (e) {
       setError((e as Error).message);

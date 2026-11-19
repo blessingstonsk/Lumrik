@@ -8,7 +8,7 @@ import { Badge, EmptyState, PageHeader } from "@/components/ui/misc";
 import { dueWords, lessonNodes, mistakeBreakdown, recommendNext, weakWords } from "@/lib/adaptive";
 import { dayKey, lastNDays } from "@/lib/dates";
 import { computeStats, levelFromXp } from "@/lib/gamification";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, plural } from "@/lib/utils";
 
 const TYPE_LABEL: Record<string, string> = {
   multiple_choice: "Multiple choice",
@@ -50,7 +50,7 @@ export default function ProgressPage() {
           ["Total XP", formatNumber(state.xpTotal)],
           ["Level", level.level],
           ["Active days (30d)", activeDays],
-          ["Longest streak", `${stats.longestStreak} days`],
+          ["Longest streak", plural(stats.longestStreak, "day")],
           ["Lessons completed", stats.lessonsCompleted],
           ["Perfect lessons", stats.perfectLessons],
           ["Flashcard reviews", stats.reviews],
@@ -75,7 +75,7 @@ export default function ProgressPage() {
             <p className="text-sm text-muted">Complete a lesson to see your accuracy.</p>
           ) : (
             <>
-              <MeterList items={breakdown.map((b) => ({ label: TYPE_LABEL[b.type] ?? b.type, value: b.accuracy, detail: `${b.total} answers` }))} />
+              <MeterList items={breakdown.map((b) => ({ label: TYPE_LABEL[b.type] ?? b.type, value: b.accuracy, detail: plural(b.total, "answer") }))} />
               {earlier !== null && recent !== null && state.recentAttempts.length >= 20 && (
                 <p className="mt-4 rounded-xl bg-surface-2 p-3 text-sm">
                   Improvement: first-try accuracy went from <strong>{earlier}%</strong> to <strong>{recent}%</strong> across your last {state.recentAttempts.length} answers.
@@ -109,7 +109,7 @@ export default function ProgressPage() {
                 })}
             </ul>
           )}
-          <p className="mt-3 text-xs text-muted">{dueWords(state, now).length} words are due for spaced-repetition review.</p>
+          <p className="mt-3 text-xs text-muted">{(() => { const n = dueWords(state, now).length; return `${plural(n, "word")} ${n === 1 ? "is" : "are"} due for spaced-repetition review.`; })()}</p>
         </Card>
       </div>
 

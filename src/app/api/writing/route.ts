@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AI_MODEL, FALLBACK_BETA, GEMINI_MODEL, anthropic, friendlyAiError, gemini, guardAiRequest, languageName } from "@/lib/server/ai";
+import { AI_MODEL, FALLBACK_BETA, GEMINI_MODEL, anthropic, friendlyAiError, gemini, guardAiRequest, languageName, languageWithScript, scriptFilter } from "@/lib/server/ai";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const native = languageName(body.nativeLang);
   const system = `You are a supportive ${target} writing teacher. Evaluate a learner's short text for a ${body.level} (${body.level === "easy" ? "A1–A2" : body.level === "medium" ? "B1–B2" : "C1"}) learner whose native language is ${native}.
 List up to 6 of the most important real issues (grammar, word choice, spelling) – never invent errors; if the text is correct, return an empty issues list.
-Write explanations, strengths and encouragement in ${native} so the learner understands them; keep "original", "suggestion" and "corrected" in ${target}. Be concise and kind.`;
+Write explanations, strengths and encouragement in ${languageWithScript(body.nativeLang)} so the learner understands them; keep "original", "suggestion" and "corrected" in ${target}. Be concise and kind.`;
   const userText = `Writing task: ${body.prompt}\n\nLearner's text:\n"""${body.text}"""`;
   try {
     let raw: string;
@@ -90,7 +90,7 @@ Write explanations, strengths and encouragement in ${native} so the learner unde
       if (!text || text.type !== "text") throw new Error("No feedback returned");
       raw = text.text;
     }
-    const parsed = FeedbackSchema.safeParse(JSON.parse(raw));
+    const parsed = FeedbackSchema.safeParse(JSON.parse(scriptFilter(body.targetLang, body.nativeLang)(raw)));
     if (!parsed.success) throw new Error("Feedback had an unexpected shape");
     const feedback: WritingFeedback = { ...parsed.data, score: Math.max(0, Math.min(100, Math.round(parsed.data.score))) };
     return NextResponse.json({ feedback });
